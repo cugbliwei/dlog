@@ -88,13 +88,12 @@ func (l *Logger) Output(calldepth int, s string) error {
 }
 
 func (l *Logger) appendToFile(content []byte) error {
-	f, err := os.OpenFile(l.filename, os.O_WRONLY, 0644)
+	f, err := os.OpenFile(l.filename, os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		log.Println("open file error: %v", err)
 		return err
 	}
 	defer f.Close()
-	n, _ := f.Seek(0, os.SEEK_END)
-	_, err = f.WriteAt(content, n)
+	_, err = f.Write(content)
 	return err
 }
