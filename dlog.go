@@ -59,41 +59,32 @@ func (l *Logger) Output(calldepth int, s string) error {
 			buf = append(buf, c)
 		} else {
 			buf = append(buf, '\n')
-			var err error
-			if len(l.filename) > 0 {
-				err = l.appendToFile(buf)
-			} else {
-				_, err = l.out.Write(buf)
-			}
+			_, err := l.out.Write(buf)
 			if err != nil {
 				return err
 			}
+			l.appendToFile(buf)
 			buf = buf[:0]
 			buf = append(buf, head...)
 		}
 	}
 	if len(buf) > len(head) {
 		buf = append(buf, '\n')
-		var err error
-		if len(l.filename) > 0 {
-			err = l.appendToFile(buf)
-		} else {
-			_, err = l.out.Write(buf)
-		}
+		_, err := l.out.Write(buf)
 		if err != nil {
 			return err
 		}
+		l.appendToFile(buf)
 	}
 	return nil
 }
 
-func (l *Logger) appendToFile(content []byte) error {
+func (l *Logger) appendToFile(content []byte) {
 	f, err := os.OpenFile(l.filename, os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		log.Println("open file error: %v", err)
-		return err
+		return
 	}
 	defer f.Close()
-	_, err = f.Write(content)
-	return err
+	_, _ = f.Write(content)
 }
