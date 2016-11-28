@@ -3,15 +3,18 @@ package dlog
 import (
 	"fmt"
 	"io"
+	"log"
+	"os"
 	"runtime"
 	"sync"
 	"time"
 )
 
 type Logger struct {
-	mu     sync.Mutex
-	prefix string
-	out    io.Writer
+	mu       sync.Mutex
+	prefix   string
+	filename string
+	out      io.Writer
 }
 
 func New(out io.Writer, prefix string) *Logger {
@@ -56,7 +59,12 @@ func (l *Logger) Output(calldepth int, s string) error {
 			buf = append(buf, c)
 		} else {
 			buf = append(buf, '\n')
-			_, err := l.out.Write(buf)
+			var err error
+			if len(l.filename) > 0 {
+				err = l.appendToFile(buf)
+			} else {
+				_, err = l.out.Write(buf)
+			}
 			if err != nil {
 				return err
 			}
@@ -66,10 +74,27 @@ func (l *Logger) Output(calldepth int, s string) error {
 	}
 	if len(buf) > len(head) {
 		buf = append(buf, '\n')
-		_, err := l.out.Write(buf)
+		var err error
+		if len(l.filename) > 0 {
+			err = l.appendToFile(buf)
+		} else {
+			_, err = l.out.Write(buf)
+		}
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (l *Logger) appendToFile(content []byte) error {
+	f, err := os.OpenFile(l.filename, os.O_WRONLY, 0644)
+	if err != nil {
+		log.Println("open file error: %v", err)
+		return err
+	}
+	defer f.Close()
+	n, _ := f.Seek(0, os.SEEK_END)
+	_, err = f.WriteAt(content, n)
+	return err
 }

@@ -2,9 +2,10 @@ package dlog
 
 import (
 	"fmt"
-	"github.com/wsxiaoys/terminal/color"
 	"io"
 	"os"
+
+	"github.com/wsxiaoys/terminal/color"
 )
 
 const (
@@ -22,6 +23,10 @@ var lg *Logger
 
 func init() {
 	lg = New(os.Stdout, "")
+}
+
+func SetLogFile(filename string) {
+	lg.filename = filename
 }
 
 func Info(format string, v ...interface{}) {
