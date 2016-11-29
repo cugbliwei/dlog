@@ -63,7 +63,9 @@ func (l *Logger) Output(calldepth int, s string) error {
 			if err != nil {
 				return err
 			}
-			l.appendToFile(buf)
+			if len(l.filename) > 0 {
+				l.appendToFile(buf)
+			}
 			buf = buf[:0]
 			buf = append(buf, head...)
 		}
@@ -74,7 +76,9 @@ func (l *Logger) Output(calldepth int, s string) error {
 		if err != nil {
 			return err
 		}
-		l.appendToFile(buf)
+		if len(l.filename) > 0 {
+			l.appendToFile(buf)
+		}
 	}
 	return nil
 }
