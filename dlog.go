@@ -4,21 +4,22 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/smtp"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
 
 type Logger struct {
-	mu       sync.Mutex
-	prefix   string
-	filename string
-	out      io.Writer
-}
-
-func New(out io.Writer, prefix string) *Logger {
-	return &Logger{out: out, prefix: prefix}
+	mu        sync.Mutex
+	date      string
+	filename  string
+	hourAgo   string
+	hFilename string
+	file      *os.File
+	out       io.Writer
 }
 
 func time33(s string) int64 {
@@ -34,11 +35,18 @@ func time33(s string) int64 {
 }
 
 func (l *Logger) header(tm time.Time, file string, line int, s string) string {
-	lid := 100000 + time33(s)%10000
-	return fmt.Sprintf("%s %d %s file %s line %d ", tm.Format("2006-01-02 15:04:05"), lid, l.prefix, file, line)
+	newPath := ""
+	paths := strings.Split(file, "/")
+	length := len(paths)
+	if length > 1 {
+		newPath = paths[length-2] + "/" + paths[length-1]
+	} else if length == 1 {
+		newPath = paths[0]
+	}
+	return fmt.Sprintf("%s %s line %d ", tm.Format("2006-01-02 15:04:05"), newPath, line)
 }
 
-func (l *Logger) Output(calldepth int, s string) error {
+func (l *Logger) Output(calldepth int, s string, email bool) error {
 	now := time.Now() // get this early.
 	var file string
 	var line int
@@ -63,9 +71,8 @@ func (l *Logger) Output(calldepth int, s string) error {
 			if err != nil {
 				return err
 			}
-			if len(l.filename) > 0 {
-				l.appendToFile(buf)
-			}
+			_, _ = l.file.Write(buf)
+
 			buf = buf[:0]
 			buf = append(buf, head...)
 		}
@@ -76,19 +83,42 @@ func (l *Logger) Output(calldepth int, s string) error {
 		if err != nil {
 			return err
 		}
-		if len(l.filename) > 0 {
-			l.appendToFile(buf)
+		_, _ = l.file.Write(buf)
+	}
+	if email {
+		target := head + s
+		emailCache.lock.Lock()
+		flag := true
+		for _, cache := range emailCache.cache {
+			rate := Similarity(target, cache)
+			if rate > 0.9 {
+				flag = false
+			}
 		}
+
+		emailCache.cache = append(emailCache.cache, target)
+		if flag {
+			SendMail("程序实时报警", target)
+		}
+
+		emailCache.lock.Unlock()
 	}
 	return nil
 }
 
-func (l *Logger) appendToFile(content []byte) {
-	f, err := os.OpenFile(l.filename, os.O_WRONLY|os.O_APPEND, 0644)
+func SendMail(subject, body string) {
+	sendToMail("host:port", "email@xxx", "", "email@xxx;email@xxx", "plain", subject, body)
+}
+
+//smtp服务发送邮件, mailType表示邮件格式是普通文件还是html或其他
+func sendToMail(host, user, password, to, mailType, subject, body string) {
+	hp := strings.Split(host, ":")
+	auth := smtp.PlainAuth("", user, password, hp[0])
+	content_type := "Content-Type: text/" + mailType + "; charset=UTF-8"
+	msg := []byte("To: " + to + "\r\nFrom: " + user + "\r\nSubject: " + subject + "\r\n" + content_type + "\r\n\r\n" + body)
+	send_to := strings.Split(to, ";")
+	err := smtp.SendMail(host, auth, user, send_to, msg)
 	if err != nil {
-		log.Println("open file error: %v", err)
-		return
+		log.Println("SendMail error: ", err)
 	}
-	defer f.Close()
-	_, _ = f.Write(content)
 }
